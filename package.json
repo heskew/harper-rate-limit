@@ -1,0 +1,61 @@
+{
+	"name": "harper-rate-limit",
+	"version": "0.1.0",
+	"description": "Rate limiting plugin for Harper applications",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"test": "npm run build && node --import ./test/setup.js --test test/*.test.js",
+		"test:watch": "node --import ./test/setup.js --test --watch test/*.test.js",
+		"test:coverage": "npm run build && node --enable-source-maps --import ./test/setup.js --test --experimental-test-coverage test/*.test.js",
+		"lint": "eslint . --ignore-pattern 'dist/**'",
+		"format": "prettier .",
+		"format:check": "prettier --check .",
+		"format:write": "prettier --write .",
+		"prepublishOnly": "npm run build"
+	},
+	"keywords": [
+		"harper",
+		"harperdb",
+		"rate-limit",
+		"rate-limiting",
+		"security",
+		"plugin"
+	],
+	"author": "Harper Community",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/heskew/harper-rate-limit"
+	},
+	"dependencies": {
+		"rate-limiter-flexible": "9.1.0"
+	},
+	"devDependencies": {
+		"@harperdb/code-guidelines": "0.0.6",
+		"@types/node": "25.2.0",
+		"eslint": "9.39.2",
+		"prettier": "3.8.1",
+		"typescript": "5.9.3"
+	},
+	"peerDependencies": {
+		"harperdb": ">=4.7.0"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	]
+}
