@@ -31,7 +31,7 @@
 		"security",
 		"plugin"
 	],
-	"author": "Harper Community",
+	"author": "Nathan Heskew <nathan@heskew.dev> (https://heskew.dev)",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
