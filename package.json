@@ -48,7 +48,7 @@
 		"typescript": "5.9.3"
 	},
 	"peerDependencies": {
-		"harperdb": ">=4.7.0"
+		"harperdb": ">=4.7.17"
 	},
 	"engines": {
 		"node": ">=22"
