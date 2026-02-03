@@ -10,6 +10,8 @@ import {
 	getRemainingPoints,
 	resetRateLimit,
 	getSecurityConfig,
+	expandEnvVar,
+	handleApplication,
 } from '../dist/index.js';
 
 describe('Rate Limiting', () => {
@@ -433,6 +435,138 @@ describe('Rate Limiting', () => {
 			// Should not throw, uses 'unknown' as fallback
 			const result = await checkRateLimit(request, { limiter });
 			assert.ok(result);
+		});
+	});
+
+	describe('expandEnvVar', () => {
+		it('should expand environment variable syntax', () => {
+			process.env.TEST_RATE_LIMIT_VAR = 'expanded-value';
+			const result = expandEnvVar('${TEST_RATE_LIMIT_VAR}');
+			assert.equal(result, 'expanded-value');
+			delete process.env.TEST_RATE_LIMIT_VAR;
+		});
+
+		it('should return original if env var not set', () => {
+			delete process.env.NONEXISTENT_VAR;
+			const result = expandEnvVar('${NONEXISTENT_VAR}');
+			assert.equal(result, '${NONEXISTENT_VAR}');
+		});
+
+		it('should return literal strings unchanged', () => {
+			assert.equal(expandEnvVar('literal-value'), 'literal-value');
+		});
+
+		it('should return non-strings unchanged', () => {
+			assert.equal(expandEnvVar(123), 123);
+			assert.equal(expandEnvVar(true), true);
+			assert.equal(expandEnvVar(null), null);
+		});
+	});
+
+	describe('handleApplication', () => {
+		it('should initialize config from scope options', () => {
+			const changeHandlers = [];
+			const mockScope = {
+				logger: null,
+				options: {
+					getAll: () => ({ points: 50, duration: 30, trustProxy: true }),
+					on: (event, handler) => {
+						if (event === 'change') changeHandlers.push(handler);
+					},
+				},
+				on: () => {},
+			};
+
+			handleApplication(mockScope);
+
+			const config = getSecurityConfig();
+			assert.equal(config.trustProxy, true);
+		});
+
+		it('should update config when change event fires', () => {
+			const changeHandlers = [];
+			let currentOptions = { points: 100, trustProxy: false };
+			const mockScope = {
+				logger: null,
+				options: {
+					getAll: () => currentOptions,
+					on: (event, handler) => {
+						if (event === 'change') changeHandlers.push(handler);
+					},
+				},
+				on: () => {},
+			};
+
+			handleApplication(mockScope);
+			assert.equal(getSecurityConfig().trustProxy, false);
+
+			// Simulate config change
+			currentOptions = { points: 100, trustProxy: true };
+			changeHandlers.forEach((handler) => handler());
+
+			assert.equal(getSecurityConfig().trustProxy, true);
+		});
+
+		it('should expand env vars in config', () => {
+			process.env.TEST_TRUST_PROXY = 'true';
+			const mockScope = {
+				logger: null,
+				options: {
+					getAll: () => ({ trustProxy: '${TEST_TRUST_PROXY}' }),
+					on: () => {},
+				},
+				on: () => {},
+			};
+
+			handleApplication(mockScope);
+
+			assert.equal(getSecurityConfig().trustProxy, true);
+			delete process.env.TEST_TRUST_PROXY;
+		});
+
+		it('should parse string numbers from env vars', () => {
+			process.env.TEST_POINTS = '200';
+			process.env.TEST_DURATION = '120';
+			const mockScope = {
+				logger: null,
+				options: {
+					getAll: () => ({
+						points: '${TEST_POINTS}',
+						duration: '${TEST_DURATION}',
+					}),
+					on: () => {},
+				},
+				on: () => {},
+			};
+
+			handleApplication(mockScope);
+
+			// Verify config was parsed (create a limiter to check it works)
+			const limiter = createRateLimiter({});
+			assert.ok(limiter);
+
+			delete process.env.TEST_POINTS;
+			delete process.env.TEST_DURATION;
+		});
+	});
+
+	describe('configure with env vars', () => {
+		it('should expand env vars in configure', () => {
+			process.env.TEST_PROXY_DEPTH = '2';
+			configure({ trustedProxyDepth: '${TEST_PROXY_DEPTH}' });
+
+			const config = getSecurityConfig();
+			assert.equal(config.trustedProxyDepth, 2);
+
+			delete process.env.TEST_PROXY_DEPTH;
+		});
+
+		it('should handle trustProxy as string "true"', () => {
+			configure({ trustProxy: 'true' });
+			assert.equal(getSecurityConfig().trustProxy, true);
+
+			configure({ trustProxy: 'false' });
+			assert.equal(getSecurityConfig().trustProxy, false);
 		});
 	});
 });

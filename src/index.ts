@@ -31,6 +31,7 @@
  */
 
 import { RateLimiterMemory, RateLimiterRes, IRateLimiterOptions } from 'rate-limiter-flexible';
+import type { Scope } from 'harperdb';
 
 // Maximum key length to prevent memory issues from malicious input
 const MAX_KEY_LENGTH = 256;
@@ -73,6 +74,37 @@ const securityConfig: SecurityConfig = {
 let rateLimiter: RateLimiterMemory | null = null;
 
 /**
+ * Expand environment variable in a string value
+ *
+ * If the value is a string in the format `${VAR_NAME}`, it will be replaced
+ * with the value of the environment variable. Non-string values are returned unchanged.
+ *
+ * @example
+ * expandEnvVar('${MY_VAR}') // Returns process.env.MY_VAR or '${MY_VAR}' if undefined
+ * expandEnvVar('literal')   // Returns 'literal'
+ * expandEnvVar(123)         // Returns 123
+ */
+export function expandEnvVar(value: any): any {
+	if (typeof value === 'string' && value.startsWith('${') && value.endsWith('}')) {
+		const envVar = value.slice(2, -1);
+		const envValue = process.env[envVar];
+		return envValue !== undefined ? envValue : value;
+	}
+	return value;
+}
+
+/**
+ * Expand environment variables in a config object
+ */
+function expandConfigEnvVars(options: Record<string, any>): Record<string, any> {
+	const expanded: Record<string, any> = {};
+	for (const [key, value] of Object.entries(options)) {
+		expanded[key] = expandEnvVar(value);
+	}
+	return expanded;
+}
+
+/**
  * Get or create the default rate limiter instance
  */
 function getRateLimiter(): RateLimiterMemory {
@@ -91,15 +123,30 @@ export interface ConfigureOptions extends Partial<IRateLimiterOptions>, Security
  * Configure the rate limit plugin. Called by Harper when loading the plugin.
  */
 export function configure(options: ConfigureOptions): void {
+	// Expand environment variables
+	const expanded = expandConfigEnvVars(options);
+
 	// Extract security options
-	const { trustProxy, trustedProxyDepth, ...rateLimiterOptions } = options;
+	const { trustProxy, trustedProxyDepth, ...rateLimiterOptions } = expanded;
 
 	// Update security config
 	if (trustProxy !== undefined) {
-		securityConfig.trustProxy = trustProxy;
+		securityConfig.trustProxy = trustProxy === true || trustProxy === 'true';
 	}
 	if (trustedProxyDepth !== undefined) {
-		securityConfig.trustedProxyDepth = trustedProxyDepth;
+		securityConfig.trustedProxyDepth =
+			typeof trustedProxyDepth === 'string' ? parseInt(trustedProxyDepth, 10) : trustedProxyDepth;
+	}
+
+	// Parse numeric values that may come from env vars as strings
+	if (typeof rateLimiterOptions.points === 'string') {
+		rateLimiterOptions.points = parseInt(rateLimiterOptions.points, 10);
+	}
+	if (typeof rateLimiterOptions.duration === 'string') {
+		rateLimiterOptions.duration = parseInt(rateLimiterOptions.duration, 10);
+	}
+	if (typeof rateLimiterOptions.blockDuration === 'string') {
+		rateLimiterOptions.blockDuration = parseInt(rateLimiterOptions.blockDuration, 10);
 	}
 
 	// Update rate limiter config
@@ -107,6 +154,70 @@ export function configure(options: ConfigureOptions): void {
 
 	// Reset limiter so it picks up new config on next use
 	rateLimiter = null;
+}
+
+/**
+ * Harper plugin entry point with runtime config change support
+ *
+ * This function is called by Harper when the plugin is loaded and provides
+ * access to the scope object for watching configuration changes.
+ */
+export function handleApplication(scope: Scope): void {
+	const logger = scope.logger;
+	let isInitialized = false;
+
+	/**
+	 * Update rate limit configuration from scope options
+	 */
+	function updateConfiguration(): void {
+		const rawOptions = (scope.options.getAll() || {}) as Record<string, any>;
+		const options = expandConfigEnvVars(rawOptions);
+
+		// Parse numeric values
+		const points = typeof options.points === 'string' ? parseInt(options.points, 10) : (options.points ?? 100);
+		const duration = typeof options.duration === 'string' ? parseInt(options.duration, 10) : (options.duration ?? 60);
+		const blockDuration =
+			typeof options.blockDuration === 'string' ? parseInt(options.blockDuration, 10) : (options.blockDuration ?? 0);
+		const trustedProxyDepth =
+			typeof options.trustedProxyDepth === 'string'
+				? parseInt(options.trustedProxyDepth, 10)
+				: (options.trustedProxyDepth ?? 0);
+
+		// Update security config
+		securityConfig.trustProxy = options.trustProxy === true || options.trustProxy === 'true';
+		securityConfig.trustedProxyDepth = trustedProxyDepth;
+
+		// Update rate limiter config
+		defaultConfig = {
+			points,
+			duration,
+			blockDuration,
+			keyPrefix: options.keyPrefix ?? 'rl',
+		};
+
+		// Reset limiter so it picks up new config on next use
+		rateLimiter = null;
+
+		if (isInitialized) {
+			logger?.info?.('Rate limit configuration updated:', { ...defaultConfig, ...securityConfig });
+		} else {
+			logger?.info?.('Rate limit plugin loaded with config:', { ...defaultConfig, ...securityConfig });
+			isInitialized = true;
+		}
+	}
+
+	// Initial configuration
+	updateConfiguration();
+
+	// Watch for configuration changes
+	scope.options.on('change', () => {
+		updateConfiguration();
+	});
+
+	// Clean up on scope close
+	scope.on('close', () => {
+		logger?.info?.('Rate limit plugin shutting down');
+	});
 }
 
 /**
