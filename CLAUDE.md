@@ -39,6 +39,29 @@ Options:
 - `byUser: true` - Use session user ID instead of IP
 - `keyGenerator: (req) => string` - Custom key function
 
+### Runtime Config Changes
+
+Uses Harper's `handleApplication(scope)` pattern to support runtime configuration changes:
+
+```typescript
+export function handleApplication(scope: Scope): void {
+	// Watch for config changes
+	scope.options.on('change', () => {
+		// Update internal config from scope.options.getAll()
+	});
+}
+```
+
+### Environment Variable Expansion
+
+Configuration values support `${ENV_VAR}` syntax for environment variable expansion:
+
+```yaml
+harper-rate-limit:
+  points: '${RATE_LIMIT_POINTS}'
+  trustProxy: '${RATE_LIMIT_TRUST_PROXY}'
+```
+
 ## Project Structure
 
 ```
@@ -47,6 +70,7 @@ src/
 dist/             # Compiled output
 test/
   index.test.js   # Tests using node:test
+.env.example      # Environment variable documentation
 ```
 
 ## Building & Testing
