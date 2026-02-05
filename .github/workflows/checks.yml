@@ -31,7 +31,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Install dependencies
-        run: sfw npm ci
+        run: sfw npm install
 
       - name: Lint
         run: npm run lint

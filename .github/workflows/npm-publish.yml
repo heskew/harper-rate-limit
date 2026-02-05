@@ -27,8 +27,8 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
 
-      - run: sfw npm ci
+      - run: sfw npm install
 
-      - run: npm publish --access public
+      - run: npm publish --access public --tag alpha
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

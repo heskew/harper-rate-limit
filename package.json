@@ -1,6 +1,6 @@
 {
 	"name": "harper-rate-limit",
-	"version": "0.2.0",
+	"version": "1.0.0-alpha.1",
 	"description": "Rate limiting plugin for Harper applications",
 	"type": "module",
 	"main": "dist/index.js",
@@ -48,7 +48,7 @@
 		"typescript": "5.9.3"
 	},
 	"peerDependencies": {
-		"harperdb": ">=4.7.17"
+		"harper": "github:HarperFast/harper"
 	},
 	"engines": {
 		"node": ">=22"

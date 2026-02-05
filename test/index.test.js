@@ -12,6 +12,7 @@ import {
 	getSecurityConfig,
 	expandEnvVar,
 	handleApplication,
+	suppressHandleApplicationWarning,
 } from '../dist/index.js';
 
 describe('Rate Limiting', () => {
@@ -547,6 +548,10 @@ describe('Rate Limiting', () => {
 
 			delete process.env.TEST_POINTS;
 			delete process.env.TEST_DURATION;
+		});
+
+		it('should export suppressHandleApplicationWarning as true', () => {
+			assert.equal(suppressHandleApplicationWarning, true);
 		});
 	});
 

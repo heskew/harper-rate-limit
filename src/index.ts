@@ -31,7 +31,12 @@
  */
 
 import { RateLimiterMemory, RateLimiterRes, IRateLimiterOptions } from 'rate-limiter-flexible';
-import type { Scope } from 'harperdb';
+// Scope type from harper - defined locally until harper v5 is published with types
+interface Scope {
+	logger?: { info?: (..._args: any[]) => void; error?: (..._args: any[]) => void };
+	options: { getAll: () => Record<string, any>; on: (_event: string, _handler: () => void) => void };
+	on: (_event: string, _handler: () => void) => void;
+}
 
 // Maximum key length to prevent memory issues from malicious input
 const MAX_KEY_LENGTH = 256;
@@ -170,7 +175,7 @@ export function handleApplication(scope: Scope): void {
 	 * Update rate limit configuration from scope options
 	 */
 	function updateConfiguration(): void {
-		const rawOptions = (scope.options.getAll() || {}) as Record<string, any>;
+		const rawOptions = scope.options.getAll() || {};
 		const options = expandConfigEnvVars(rawOptions);
 
 		// Parse numeric values
@@ -219,6 +224,11 @@ export function handleApplication(scope: Scope): void {
 		logger?.info?.('Rate limit plugin shutting down');
 	});
 }
+
+/**
+ * Suppress the "experimental API" warning for handleApplication
+ */
+export const suppressHandleApplicationWarning = true;
 
 /**
  * Get current security configuration (for testing/debugging)
